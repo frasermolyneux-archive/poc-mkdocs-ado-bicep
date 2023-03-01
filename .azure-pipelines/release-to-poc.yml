@@ -1,0 +1,12 @@
+trigger: none
+pr: none
+
+pool: 'Dedicated'
+
+stages: 
+- template: templates/bicep-build-and-apply.yml
+  parameters:
+    azureSubscription: 'spn-poc-mkdocs-ado-bicep-poc'
+    environmentName: 'poc'
+    deploymentPrefix: 'mkdocs'
+    

@@ -1,0 +1,76 @@
+parameters:
+- name: azureSubscription
+  type: string
+- name: environmentName
+  type: string
+- name: deploymentPrefix
+  type: string
+
+stages:
+- stage: bicep_build_and_apply_${{ parameters.environmentName }}
+  jobs:
+  - deployment: deploy_${{ parameters.environmentName }}_bicep
+
+    workspace:
+      clean: all
+
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - checkout: self
+
+            - task: AzureCLI@2
+              displayName: Build Bicep
+              inputs:
+                azureSubscription: ${{ parameters.azureSubscription }}
+                scriptType: 'pscore'
+                scriptLocation: 'inlineScript'
+                inlineScript: |
+                  az bicep build --file bicep/main.bicep --stdout
+
+            - task: AzureCLI@2
+              displayName: Validate Bicep
+              inputs:
+                azureSubscription: ${{ parameters.azureSubscription }}
+                scriptType: 'pscore'
+                scriptLocation: 'inlineScript'
+                inlineScript: |
+                  $config = (Get-Content bicep/params/${{ parameters.environmentName }}.json | ConvertFrom-Json)
+
+                  az deployment sub validate `
+                    --name "${{ parameters.deploymentPrefix }}-$($config.parameters.environment.value)" `
+                    --location $config.parameters.primaryLocation.value `
+                    --template-file bicep/main.bicep `
+                    --parameters @bicep/params/$($config.parameters.environment.value).json
+
+            - task: AzureCLI@2
+              displayName: WhatIf Bicep
+              inputs:
+                azureSubscription: ${{ parameters.azureSubscription }}
+                scriptType: 'pscore'
+                scriptLocation: 'inlineScript'
+                inlineScript: |
+                  $config = (Get-Content bicep/params/${{ parameters.environmentName }}.json | ConvertFrom-Json)
+
+                  az deployment sub what-if `
+                    --name "${{ parameters.deploymentPrefix }}-$($config.parameters.environment.value)" `
+                    --location $config.parameters.primaryLocation.value `
+                    --template-file bicep/main.bicep `
+                    --parameters @bicep/params/$($config.parameters.environment.value).json
+
+            - task: AzureCLI@2
+              displayName: Deploy Bicep
+              inputs:
+                azureSubscription: ${{ parameters.azureSubscription }}
+                scriptType: 'pscore'
+                scriptLocation: 'inlineScript'
+                inlineScript: |
+                  $config = (Get-Content bicep/params/${{ parameters.environmentName }}.json | ConvertFrom-Json)
+
+                  az deployment sub create `
+                    --name "${{ parameters.deploymentPrefix }}-$($config.parameters.environment.value)" `
+                    --location $config.parameters.primaryLocation.value `
+                    --template-file bicep/main.bicep `
+                    --parameters @bicep/params/$($config.parameters.environment.value).json
+                    
